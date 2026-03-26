@@ -66,7 +66,7 @@ The API uses **NestJS** (rather than Next.js) so the backend stays a dedicated s
   npm run dev:api
   ```
 
-  Default port is **3000** (override with `PORT` in `.env`). Health check: `GET http://localhost:3000/health`.
+  Default port is **3000** (override with `PORT` in `.env`). Health check: `GET http://localhost:3000/health` (no auth). API routes are under **`/v1`** (e.g. `GET /v1/users/me` with `Authorization: Bearer <token>`). Interactive docs: **`http://localhost:3000/docs`**. Mock login: `POST /v1/auth/login` with JSON `{ "email": "you@example.com", "password": "anything" }` — set `JWT_SECRET` in `.env` first.
 
 - **Mobile (Expo)**:
 

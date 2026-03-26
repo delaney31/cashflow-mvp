@@ -18,7 +18,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "turbo run typecheck",
-    "db:generate": "npm run generate -w @cashflow/db",
+    "db:generate": "dotenv -e .env -- npm run generate -w @cashflow/db",
     "db:migrate": "dotenv -e .env -- npm run migrate:dev -w @cashflow/db",
     "db:migrate:deploy": "dotenv -e .env -- npm run migrate:deploy -w @cashflow/db",
     "db:seed": "dotenv -e .env -- npm run seed -w @cashflow/db",

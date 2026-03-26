@@ -11,7 +11,8 @@ Mobile-first cash flow app: **Expo** (React Native), **NestJS** API, **PostgreSQ
 | `packages/shared` | Shared types |
 | `packages/db` | Prisma schema, migrations, seed |
 | `packages/ui` | Shared React Native UI primitives |
-| `docs/` | Environment reference, architecture notes |
+| `docs/` | **[Documentation index](docs/README.md)** — environment, architecture, Plaid checklist |
+| `render.yaml` | Optional [Render](https://render.com) Blueprint for the API (Neon is configured separately) |
 
 API contracts for JSON responses live in `apps/api/src/contracts/api-responses.ts`; the mobile client mirrors shapes in `apps/mobile/src/api/types.ts`.
 
@@ -44,15 +45,15 @@ API contracts for JSON responses live in `apps/api/src/contracts/api-responses.t
    - Root `npm run db:*` scripts load **`.env` at the repo root** via `dotenv-cli`. The API also reads `apps/api/.env` when you start it from that package—keep URLs in sync or use one file and symlink.
    - Full variable reference: **[docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)**.
 
-3. **Database: migrate and seed**
+3. **Database: generate client, migrate, and seed** (requires root `.env` with `DATABASE_URL` and `DIRECT_URL`)
 
    ```bash
    npm run db:generate
-   npm run db:migrate -w @cashflow/db
+   npm run db:migrate
    npm run db:seed
    ```
 
-   Seed creates the mock JWT user (`usr_mock_mvp_001`), a monthly budget cap, and a sample goal so the dashboard has data **without Plaid**. Use the same id as in `POST /v1/auth/login` (see [Auth](#auth)).
+   Seed creates the mock JWT user (`usr_mock_mvp_001`), a monthly budget cap, and a sample goal so the dashboard has data **without Plaid**. The dev login flow uses that user id (see **Auth** under [Development workflow](#development-workflow)).
 
 4. **Build internal packages** (first time or after shared/db changes):
 
@@ -142,8 +143,10 @@ Prisma is configured with `url = DATABASE_URL` and `directUrl = DIRECT_URL` so t
 
 ## Documentation
 
-- **[docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)** — environment variables (including Neon + Render)
-- **[docs/architecture.md](docs/architecture.md)** — high-level map
+- **[docs/README.md](docs/README.md)** — index of all docs (environment, architecture, Plaid, deployment)
+- **[docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)** — environment variables (Neon, Render, API, mobile)
+- **[docs/architecture.md](docs/architecture.md)** — monorepo and data-flow overview
+- **[docs/plaid-local-testing-checklist.md](docs/plaid-local-testing-checklist.md)** — optional Plaid sandbox testing
 - **[render.yaml](render.yaml)** — Render Blueprint for the API (optional; adjust `name` / `region` before use)
 
 ## Tech stack

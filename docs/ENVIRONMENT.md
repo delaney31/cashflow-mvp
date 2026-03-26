@@ -36,7 +36,8 @@ Both must be present wherever Prisma runs (local CLI, CI, Render **pre-deploy**)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `PORT` | No | HTTP port (default `3000`). |
+| `PORT` | No | HTTP port (default `3000`; Render sets this automatically). |
+| `HOST` | No | Bind address (default **`0.0.0.0`** — required for cloud hosts). |
 | `NODE_ENV` | No | `development` / `production`. |
 | `JWT_SECRET` | Yes (prod) | HS256 secret; min 32 chars recommended. |
 | `JWT_EXPIRES_SEC` | No | Access token TTL in seconds (default 7 days). |
@@ -45,11 +46,18 @@ Both must be present wherever Prisma runs (local CLI, CI, Render **pre-deploy**)
 | `OPENAI_API_KEY` | For AI Coach | OpenAI API key. |
 | `OPENAI_MODEL` | No | Model id (default `gpt-4o-mini`). |
 | `PLAID_CLIENT_ID` / `PLAID_SECRET` / `PLAID_ENV` | For Plaid | Sandbox or production Plaid credentials. |
-| `PLAID_WEBHOOK_URL` | No | Public URL for Plaid webhooks. |
+| `PLAID_TOKEN_ENCRYPTION_KEY` | For Plaid | Base64 **32-byte** key for encrypting Plaid tokens at rest (`openssl rand -base64 32`). |
+| `PLAID_CLIENT_NAME` | No | Shown in Plaid Link (default product name). |
+| `PLAID_WEBHOOK_VERIFY` | No | Webhook JWT verification; see Plaid testing doc. |
+| `PLAID_WEBHOOK_URL` | No | Public HTTPS URL for Plaid webhooks (e.g. ngrok in dev). |
 | `REDIS_URL` | No | `redis://…` — enables BullMQ background jobs; omit to run API without workers. |
 | `WORKER_ENABLED` | No | `false` disables in-process BullMQ workers (default `true` when Redis present). |
 | `JOB_SCHEDULER_ENABLED` | No | `false` disables cron enqueue (useful for worker-only replicas). |
 | `EXPO_ACCESS_TOKEN` | For push | Expo push notification access token; without it, critical alerts log only. |
+
+### Plaid (optional)
+
+Full local testing steps, curl examples, and webhook notes: **[plaid-local-testing-checklist.md](./plaid-local-testing-checklist.md)**.
 
 ## Mobile (`apps/mobile`)
 

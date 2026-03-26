@@ -40,7 +40,8 @@ API contracts for JSON responses live in `apps/api/src/contracts/api-responses.t
      cp apps/mobile/.env.example apps/mobile/.env
      ```
 
-   - Set `DATABASE_URL` everywhere Prisma or the API needs it.
+   - Set **`DATABASE_URL`** and **`DIRECT_URL`**. For local Postgres, use the **same** connection string for both (see [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) for Neon).
+   - Root `npm run db:*` scripts load **`.env` at the repo root** via `dotenv-cli`. The API also reads `apps/api/.env` when you start it from that package—keep URLs in sync or use one file and symlink.
    - Full variable reference: **[docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)**.
 
 3. **Database: migrate and seed**
@@ -63,7 +64,7 @@ API contracts for JSON responses live in `apps/api/src/contracts/api-responses.t
 
 | Goal | Command |
 |------|---------|
-| API (watch) | `npm run dev:api` — default **http://localhost:3000** · OpenAPI **http://localhost:3000/docs** · Health **GET http://localhost:3000/health** (no `/v1`) |
+| API (watch) | `npm run dev:api` — default **http://localhost:3000** (binds **0.0.0.0**; override with `HOST`) · OpenAPI **http://localhost:3000/docs** · Health **GET http://localhost:3000/health** (no `/v1`; checks DB connectivity) |
 | Mobile (Expo) | `npm run dev:mobile` or `cd apps/mobile && npx expo start` |
 | API + mobile (parallel) | `npm run dev` |
 
@@ -85,16 +86,65 @@ npm run format:check
 
 - **Schema:** `packages/db/prisma/schema.prisma`
 - **Migrations:** `packages/db/prisma/migrations/`
-- **Seed:** `npm run db:seed` — idempotent upserts for local testing
+- **Seed:** `npm run db:seed` — idempotent upserts for local testing (requires root `.env` with `DATABASE_URL` + `DIRECT_URL`)
 
 ```bash
-npm run db:migrate:deploy -w @cashflow/db   # CI / production
+# Local (loads repo-root .env)
+npm run db:migrate:deploy
+
+# CI / platforms that inject env (no .env file), e.g. Render pre-deploy
+npm run migrate:deploy -w @cashflow/db
 ```
+
+## Deploying the API (Render + Neon)
+
+The Expo app calls the API over HTTPS. Use **Neon** for PostgreSQL and **Render** for the Node web service. This repo includes a **[render.yaml](render.yaml)** blueprint (API only; database is external Neon).
+
+### 1. Neon (PostgreSQL)
+
+1. Create a project at [neon.tech](https://neon.tech) and a database branch (e.g. `main`).
+2. In the Neon dashboard, open **Connection details** and copy:
+   - **Pooled** connection string → set as **`DATABASE_URL`** on Render (often includes `-pooler` in the host; keep `?sslmode=require` if present).
+   - **Direct** connection string → set as **`DIRECT_URL`** (non-pooled; used by Prisma migrations).
+3. Optional: allow **IP allowlist** `0.0.0.0/0` if Neon restricts inbound (Render egress IPs are not fixed on all plans—Neon typically allows SSL from anywhere when configured for public access).
+
+Prisma is configured with `url = DATABASE_URL` and `directUrl = DIRECT_URL` so the app uses the pooler at runtime and migrations use a direct session.
+
+### 2. Render (web service)
+
+1. In [Render](https://render.com), **New** → **Blueprint** (or **Web Service** if not using the file).
+2. Connect the GitHub repo and select the branch to deploy.
+3. If using **Blueprint**, point it at `render.yaml` in the repo root. If creating a service manually, use:
+   - **Root directory:** repository root (default).
+   - **Build command:** `npm ci && npm run build`
+   - **Pre-deploy command:** `npm run migrate:deploy -w @cashflow/db` (runs Prisma migrations with env vars from Render; see [Render pre-deploy](https://render.com/docs/deploys#pre-deploy-command). If your plan does not support it, run the same command locally or in CI with Neon `DATABASE_URL` + `DIRECT_URL` set.)
+   - **Start command:** `npm run start:prod -w @cashflow/api`
+   - **Health check path:** `/health`
+4. Under **Environment**, set at minimum:
+   - `NODE_ENV` = `production`
+   - `DATABASE_URL` = Neon **pooled** URL
+   - `DIRECT_URL` = Neon **direct** URL
+   - `JWT_SECRET` = long random string (32+ characters)
+5. Enable **Include environment variables in the build** if your build step needs them (Prisma client generation reads the schema; migrate runs in pre-deploy with runtime env).
+6. After deploy, note the service URL (e.g. `https://cashflow-api.onrender.com`). Your mobile app should set `EXPO_PUBLIC_API_URL=https://<host>/v1`.
+
+**Optional:** `REDIS_URL` (Render Redis or Upstash) for BullMQ jobs. If unset, the API runs without background workers—fine for an MVP.
+
+**Manual steps not in YAML:** Create the Neon project/branches, paste secrets in Render, connect the Git repo, and point the Expo `EXPO_PUBLIC_API_URL` at the deployed API.
+
+### 3. First deploy checklist
+
+- [ ] Neon `DATABASE_URL` (pooled) + `DIRECT_URL` (direct) in Render
+- [ ] `JWT_SECRET` set
+- [ ] Pre-deploy migrations succeeded (check deploy logs)
+- [ ] `GET https://<your-service>/health` returns `200` with `"database":"connected"`
+- [ ] Mobile `.env` / EAS env: `EXPO_PUBLIC_API_URL=https://<your-service>/v1`
 
 ## Documentation
 
-- **[docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)** — environment variables
+- **[docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)** — environment variables (including Neon + Render)
 - **[docs/architecture.md](docs/architecture.md)** — high-level map
+- **[render.yaml](render.yaml)** — Render Blueprint for the API (optional; adjust `name` / `region` before use)
 
 ## Tech stack
 

@@ -19,7 +19,7 @@ This repository is a TypeScript monorepo for a mobile-first cash flow product.
 2. **API** orchestrates sync, budgets, goals, alerts, optional **BullMQ** jobs, and **OpenAI** explanations.
 3. **Mobile** consumes REST under `/v1` (see `apps/mobile/src/api/http.ts`).
 
-Environment variables: **[ENVIRONMENT.md](./ENVIRONMENT.md)** (root `.env.example` is a short template).
+Environment variables: **[ENVIRONMENT.md](./ENVIRONMENT.md)** (root `.env.example` is a short template). Production API hosting: **[README Deploying the API](../README.md#deploying-the-api-render--neon)** and root **`render.yaml`**.
 
 ## Database (MVP schema)
 

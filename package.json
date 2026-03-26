@@ -19,13 +19,14 @@
     "format:check": "prettier --check .",
     "typecheck": "turbo run typecheck",
     "db:generate": "npm run generate -w @cashflow/db",
-    "db:migrate": "npm run migrate:dev -w @cashflow/db",
-    "db:migrate:deploy": "npm run migrate:deploy -w @cashflow/db",
-    "db:seed": "npm run seed -w @cashflow/db",
+    "db:migrate": "dotenv -e .env -- npm run migrate:dev -w @cashflow/db",
+    "db:migrate:deploy": "dotenv -e .env -- npm run migrate:deploy -w @cashflow/db",
+    "db:seed": "dotenv -e .env -- npm run seed -w @cashflow/db",
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
     "@eslint/js": "^9.16.0",
+    "dotenv-cli": "^11.0.0",
     "eslint": "^9.16.0",
     "eslint-config-prettier": "^9.1.0",
     "prettier": "^3.4.2",

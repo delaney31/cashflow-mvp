@@ -43,8 +43,10 @@ async function bootstrap() {
   SwaggerModule.setup('docs', app, document);
 
   const config = app.get(ConfigService);
-  const port = config.get<number>('PORT', 3000);
-  await app.listen(port);
+  const portRaw = process.env.PORT ?? config.get<string>('PORT') ?? '3000';
+  const port = Number.parseInt(portRaw, 10);
+  const host = process.env.HOST ?? '0.0.0.0';
+  await app.listen(Number.isFinite(port) ? port : 3000, host);
 }
 
 void bootstrap();

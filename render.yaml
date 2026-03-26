@@ -1,0 +1,26 @@
+# Render Blueprint — Cashflow API (NestJS) + external Neon PostgreSQL.
+# See README "Deploying the API (Render + Neon)" for Neon URLs and env vars.
+#
+# After first deploy, set DATABASE_URL (pooled), DIRECT_URL (direct), JWT_SECRET,
+# and any optional keys (REDIS_URL, Plaid, OpenAI) in the service Environment.
+
+services:
+  - type: web
+    name: cashflow-api
+    runtime: node
+    region: oregon
+    plan: starter
+    buildCommand: npm ci && npm run build
+    # Uses DATABASE_URL + DIRECT_URL from the service environment (no repo .env on Render)
+    preDeployCommand: npm run migrate:deploy -w @cashflow/db
+    startCommand: npm run start:prod -w @cashflow/api
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false

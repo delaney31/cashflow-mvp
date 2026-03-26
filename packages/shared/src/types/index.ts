@@ -7,6 +7,8 @@ export type HealthStatus = {
   ok: boolean;
   service: string;
   timestamp: string;
+  /** Present when the handler could probe the database (e.g. production readiness). */
+  database?: 'connected' | 'error';
 };
 
 /** Placeholder for future API error envelope */

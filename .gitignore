@@ -1,0 +1,35 @@
+# Dependencies
+node_modules
+
+# Build
+dist
+build
+.next
+.turbo
+
+# Expo
+.expo
+web-build
+
+# Env (keep .env.example tracked)
+.env
+.env.local
+.env.*.local
+apps/*/.env
+packages/*/.env
+
+# OS / IDE
+.DS_Store
+*.log
+.idea
+.vscode
+
+# Test / coverage
+coverage
+
+# Prisma
+packages/db/prisma/*.db
+packages/db/prisma/*.db-journal
+
+# Misc
+*.tsbuildinfo

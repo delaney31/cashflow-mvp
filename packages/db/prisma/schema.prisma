@@ -1,0 +1,379 @@
+// Cashflow MVP — PostgreSQL schema. Comments describe domain intent per table.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+/// Bank-reported lifecycle: pending (authorization) vs settled/posted.
+enum TransactionStatus {
+  PENDING
+  POSTED
+}
+
+/// How often a recurring pattern repeats (human + rule engine).
+enum RecurringFrequency {
+  UNKNOWN
+  WEEKLY
+  BIWEEKLY
+  SEMI_MONTHLY
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+}
+
+/// User-facing goal kinds (examples; extend with CUSTOM as catch-all).
+enum GoalType {
+  MONTHLY_SPENDING_CAP
+  CASH_BUFFER_TARGET
+  DEBT_PAYOFF_TARGET
+  MIN_CHECKING_BALANCE
+  PURCHASE_GUARDRAIL
+  CUSTOM
+}
+
+enum GoalStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+  CANCELLED
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum LinkedAccountStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+}
+
+enum BalanceSnapshotSource {
+  PLAID
+  MANUAL
+  IMPORT
+}
+
+// ---------------------------------------------------------------------------
+// Core identity
+// ---------------------------------------------------------------------------
+
+/// Application user (auth provider IDs can be added later).
+model User {
+  id        String   @id @default(cuid())
+  email     String?  @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  linkedAccounts         LinkedAccount[]
+  monthlyBudgets         MonthlyBudget[]
+  categories             Category[]
+  goals                  Goal[]
+  alerts                 Alert[]
+  scenarios              Scenario[]
+  dailyCashflowSnapshots DailyCashflowSnapshot[]
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Plaid / institutions & accounts
+// ---------------------------------------------------------------------------
+
+/// Financial institution metadata (e.g. from Plaid institution object).
+model Institution {
+  id                 String   @id @default(cuid())
+  plaidInstitutionId String   @unique @map("plaid_institution_id")
+  name               String
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  linkedAccounts LinkedAccount[]
+
+  @@index([name])
+  @@map("institutions")
+}
+
+/// A user’s linked bank account (one Plaid account under an item).
+model LinkedAccount {
+  id             String              @id @default(cuid())
+  userId         String              @map("user_id")
+  institutionId  String              @map("institution_id")
+  plaidItemId    String              @map("plaid_item_id")
+  plaidAccountId String              @map("plaid_account_id")
+  name           String
+  officialName   String?             @map("official_name")
+  mask           String?
+  type           String
+  subtype        String?
+  currency       String              @default("USD")
+  status         LinkedAccountStatus @default(ACTIVE)
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institution       Institution            @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  balanceSnapshots  BalanceSnapshot[]
+  transactions      Transaction[]
+  recurringPatterns RecurringTransaction[]
+
+  @@unique([plaidItemId, plaidAccountId])
+  @@index([userId])
+  @@index([institutionId])
+  @@index([userId, status])
+  @@map("linked_accounts")
+}
+
+/// Point-in-time balance for an account (history for charts and reconciliation).
+model BalanceSnapshot {
+  id              String                @id @default(cuid())
+  linkedAccountId String                @map("linked_account_id")
+  balance         Decimal               @db.Decimal(19, 4)
+  currency        String                @default("USD")
+  asOf            DateTime              @map("as_of")
+  source          BalanceSnapshotSource @default(PLAID)
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  linkedAccount LinkedAccount @relation(fields: [linkedAccountId], references: [id], onDelete: Cascade)
+
+  @@index([linkedAccountId, asOf(sort: Desc)])
+  @@index([asOf])
+  @@map("balance_snapshots")
+}
+
+// ---------------------------------------------------------------------------
+// Categories (shared between budgets and transaction classification)
+// ---------------------------------------------------------------------------
+
+/// Spend category per user (hierarchy via parent). Ensures stable AI vs user assignment FKs.
+model Category {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  name      String
+  slug      String
+  parentId  String?  @map("parent_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[] @relation("CategoryHierarchy")
+
+  transactionsAiAssigned   Transaction[]    @relation("TransactionAiCategory")
+  transactionsUserAssigned Transaction[]    @relation("TransactionUserCategory")
+  budgetLines              BudgetCategory[]
+
+  @@unique([userId, slug])
+  @@index([userId])
+  @@index([parentId])
+  @@map("categories")
+}
+
+// ---------------------------------------------------------------------------
+// Transactions
+// ---------------------------------------------------------------------------
+
+/// Individual bank transaction with pending/posted support and AI vs user category.
+model Transaction {
+  id                 String            @id @default(cuid())
+  linkedAccountId    String            @map("linked_account_id")
+  plaidTransactionId String?           @unique @map("plaid_transaction_id")
+  amount             Decimal           @db.Decimal(19, 4)
+  currency           String            @default("USD")
+  status             TransactionStatus
+  /// Bank/posting date used for reporting (date-only semantics).
+  date               DateTime          @db.Date
+  /// When the transaction posted (null while PENDING).
+  postedAt           DateTime?         @map("posted_at")
+  name               String
+  merchantName       String?           @map("merchant_name")
+  rawPayload         Json?             @map("raw_payload")
+
+  aiCategoryId   String? @map("ai_category_id")
+  userCategoryId String? @map("user_category_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  linkedAccount LinkedAccount @relation(fields: [linkedAccountId], references: [id], onDelete: Cascade)
+  aiCategory    Category?     @relation("TransactionAiCategory", fields: [aiCategoryId], references: [id], onDelete: SetNull)
+  userCategory  Category?     @relation("TransactionUserCategory", fields: [userCategoryId], references: [id], onDelete: SetNull)
+
+  @@index([linkedAccountId, date(sort: Desc)])
+  @@index([linkedAccountId, status])
+  @@index([date])
+  @@index([status, postedAt])
+  @@index([aiCategoryId])
+  @@index([userCategoryId])
+  @@map("transactions")
+}
+
+/// Detected or user-confirmed recurring spend/income pattern.
+model RecurringTransaction {
+  id               String             @id @default(cuid())
+  linkedAccountId  String             @map("linked_account_id")
+  label            String
+  merchantPattern  String?            @map("merchant_pattern")
+  averageAmount    Decimal            @map("average_amount") @db.Decimal(19, 4)
+  currency         String             @default("USD")
+  frequency        RecurringFrequency @default(UNKNOWN)
+  nextExpectedDate DateTime?          @map("next_expected_date") @db.Date
+  isActive         Boolean            @default(true) @map("is_active")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  linkedAccount LinkedAccount @relation(fields: [linkedAccountId], references: [id], onDelete: Cascade)
+
+  @@index([linkedAccountId])
+  @@index([nextExpectedDate])
+  @@map("recurring_transactions")
+}
+
+// ---------------------------------------------------------------------------
+// Budgets (month-scoped)
+// ---------------------------------------------------------------------------
+
+/// One envelope per calendar month for a user (caps and planning).
+model MonthlyBudget {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  year      Int
+  month     Int
+  currency  String   @default("USD")
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categories BudgetCategory[]
+
+  @@unique([userId, year, month])
+  @@index([userId, year, month])
+  @@map("monthly_budgets")
+}
+
+/// Line items inside a monthly budget (planned amounts per category).
+model BudgetCategory {
+  id              String   @id @default(cuid())
+  monthlyBudgetId String   @map("monthly_budget_id")
+  categoryId      String?  @map("category_id")
+  name            String
+  allocatedAmount Decimal  @map("allocated_amount") @db.Decimal(19, 4)
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  monthlyBudget MonthlyBudget @relation(fields: [monthlyBudgetId], references: [id], onDelete: Cascade)
+  category      Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([monthlyBudgetId])
+  @@index([categoryId])
+  @@map("budget_categories")
+}
+
+// ---------------------------------------------------------------------------
+// Goals (user-managed, soft-delete)
+// ---------------------------------------------------------------------------
+
+/// User savings/debt/cap/guardrail targets — fully user-controlled metadata.
+model Goal {
+  id            String     @id @default(cuid())
+  userId        String     @map("user_id")
+  title         String
+  type          GoalType
+  targetAmount  Decimal    @map("target_amount") @db.Decimal(19, 4)
+  currentAmount Decimal    @default(0) @map("current_amount") @db.Decimal(19, 4)
+  dueDate       DateTime?  @map("due_date") @db.Date
+  status        GoalStatus @default(ACTIVE)
+  priority      Int        @default(0)
+  notes         String?
+  archivedAt    DateTime?  @map("archived_at")
+  deletedAt     DateTime?  @map("deleted_at")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, deletedAt])
+  @@index([dueDate])
+  @@map("goals")
+}
+
+// ---------------------------------------------------------------------------
+// Alerts & AI scenarios
+// ---------------------------------------------------------------------------
+
+/// Actionable or informational alerts (overspend, low buffer, sync errors).
+model Alert {
+  id         String        @id @default(cuid())
+  userId     String        @map("user_id")
+  severity   AlertSeverity
+  alertType  String        @map("alert_type")
+  title      String
+  body       String?
+  metadata   Json?
+  resolvedAt DateTime?     @map("resolved_at")
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, resolvedAt])
+  @@index([severity])
+  @@map("alerts")
+}
+
+/// What-if or AI scenario runs: structured inputs and model outputs (JSON).
+model Scenario {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  name      String
+  inputs    Json
+  outputs   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("scenarios")
+}
+
+// ---------------------------------------------------------------------------
+// Analytics
+// ---------------------------------------------------------------------------
+
+/// Pre-aggregated daily net cashflow for dashboards and forecasting.
+model DailyCashflowSnapshot {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  date      DateTime @db.Date
+  netAmount Decimal  @map("net_amount") @db.Decimal(19, 4)
+  currency  String   @default("USD")
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date(sort: Desc)])
+  @@map("daily_cashflow_snapshots")
+}

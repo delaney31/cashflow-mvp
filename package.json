@@ -1,0 +1,35 @@
+{
+  "name": "cashflow-mvp",
+  "private": true,
+  "packageManager": "npm@11.11.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "dev:api": "npm run dev -w @cashflow/api",
+    "dev:mobile": "npm run dev -w @cashflow/mobile",
+    "lint": "turbo run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "npm run generate -w @cashflow/db",
+    "db:migrate": "npm run migrate:dev -w @cashflow/db",
+    "db:migrate:deploy": "npm run migrate:deploy -w @cashflow/db",
+    "clean": "turbo run clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.16.0",
+    "eslint": "^9.16.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.0"
+  }
+}

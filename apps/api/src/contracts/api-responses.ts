@@ -39,6 +39,23 @@ export type BalanceResponse = {
   source: 'PLAID' | 'MANUAL' | 'IMPORT';
 };
 
+export type RecurringUpcomingResponse = {
+  id: string;
+  linkedAccountId: string;
+  label: string;
+  averageAmount: string;
+  currency: string;
+  frequency: string;
+  nextExpectedDate: string | null;
+};
+
+export type CategoryListItemResponse = {
+  id: string;
+  name: string;
+  slug: string;
+  parentId: string | null;
+};
+
 export type TransactionResponse = {
   id: string;
   linkedAccountId: string;
@@ -118,13 +135,87 @@ export type AlertEvaluationResponse = {
   resolves: number;
 };
 
+/** Structured scenario input (v1) — persisted as JSON. */
+export type ScenarioAdjustmentV1 =
+  | {
+      type: 'one_time_cash';
+      label?: string;
+      /** Positive = cash in, negative = cash out. */
+      amount: string;
+    }
+  | {
+      type: 'recurring_monthly';
+      label?: string;
+      /** Positive = improves monthly surplus. */
+      netMonthlyImpact: string;
+    }
+  | {
+      type: 'debt_payoff';
+      label?: string;
+      principalPayment: string;
+      monthlyPaymentRemoved?: string;
+    };
+
+export type ScenarioInputV1 = {
+  version: 1;
+  horizonMonths: number;
+  adjustments: ScenarioAdjustmentV1[];
+};
+
+export type ScenarioOutputsV1 = {
+  version: 1;
+  baseline: {
+    periodYear: number;
+    periodMonth: number;
+    periodLabel: string;
+    currency: string;
+    projectedMonthlySurplus: string;
+    bufferTotal: string;
+  };
+  deltas: {
+    oneTimeNet: string;
+    recurringMonthly: string;
+  };
+  projected: {
+    projectedMonthlySurplusAfter: string;
+    monthlySurplusDelta: string;
+    bufferAfterOneTime: string;
+    bufferDeltaAfterOneTime: string;
+    bufferAfterHorizon: string;
+  };
+  adjustmentLines: Array<{
+    kind: string;
+    label: string | null;
+    oneTimeImpact: string | null;
+    recurringImpact: string | null;
+  }>;
+  summaries: string[];
+};
+
 export type ScenarioResponse = {
   id: string;
   name: string;
-  inputs: Record<string, unknown>;
-  outputs: Record<string, unknown> | null;
+  inputs: ScenarioInputV1;
+  outputs: ScenarioOutputsV1 | null;
   createdAt: string;
   updatedAt: string;
+};
+
+/** Structured + narrative AI explanation; numbers must originate from deterministic context only. */
+export type AiStructuredExplanation = {
+  headline: string;
+  keyPoints: string[];
+  cautions?: string[];
+  nextSteps?: string[];
+  narrative: string;
+};
+
+export type AiExplanationResponse = {
+  structured: AiStructuredExplanation;
+  /** Same as structured.narrative; convenient for clients that expect `text`. */
+  text: string;
+  model: string;
+  disclaimer: string;
 };
 
 export type PaginatedMeta = {

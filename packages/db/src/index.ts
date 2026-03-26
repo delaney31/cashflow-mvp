@@ -10,6 +10,7 @@ export {
 // Model + enum types (Prisma-generated) for consumers that import from `@cashflow/db` only.
 export type {
   Alert,
+  BackgroundJobLog,
   BalanceSnapshot,
   BalanceSnapshotSource,
   BudgetCategory,
@@ -20,6 +21,7 @@ export type {
   LinkedAccount,
   PlaidItem,
   PlaidWebhookDedupe,
+  PushDevice,
   LinkedAccountStatus,
   MonthlyBudget,
   RecurringFrequency,

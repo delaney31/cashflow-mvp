@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsOptional, IsString } from 'class-validator';
+import { TransactionStatus } from '@cashflow/db';
+import { IsDateString, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class TransactionsQueryDto extends PaginationQueryDto {
@@ -17,4 +18,20 @@ export class TransactionsQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   linkedAccountId?: string;
+
+  @ApiPropertyOptional({ enum: TransactionStatus, description: 'Posted vs pending' })
+  @IsOptional()
+  @IsEnum(TransactionStatus)
+  status?: TransactionStatus;
+
+  @ApiPropertyOptional({ description: 'Filter by user-assigned category id' })
+  @IsOptional()
+  @IsString()
+  userCategoryId?: string;
+
+  @ApiPropertyOptional({ description: 'Search name or merchant (case-insensitive)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  search?: string;
 }

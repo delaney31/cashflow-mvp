@@ -1,42 +1,65 @@
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View } from 'react-native';
-import type { HealthStatus } from '@cashflow/shared';
-import { AppText } from '@cashflow/ui';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ApiProvider } from './src/api/ApiContext';
+import { RootTabs } from './src/navigation/RootTabs';
+import { ThemeProvider, useAppTheme } from './src/theme/ThemeContext';
 
-const demoHealth: HealthStatus = {
-  ok: true,
-  service: 'mobile',
-  timestamp: new Date().toISOString(),
-};
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      retry: 1,
+    },
+  },
+});
 
-export default function App() {
+function NavigationRoot() {
+  const { colors, colorScheme } = useAppTheme();
+  const navTheme =
+    colorScheme === 'dark'
+      ? {
+          ...DarkTheme,
+          colors: {
+            ...DarkTheme.colors,
+            primary: colors.primary,
+            background: colors.background,
+            card: colors.tabBar,
+            text: colors.text,
+            border: colors.tabBarBorder,
+          },
+        }
+      : {
+          ...DefaultTheme,
+          colors: {
+            ...DefaultTheme.colors,
+            primary: colors.primary,
+            background: colors.background,
+            card: colors.tabBar,
+            text: colors.text,
+            border: colors.tabBarBorder,
+          },
+        };
+
   return (
-    <View style={styles.container}>
-      <AppText style={styles.title}>Cashflow MVP</AppText>
-      <AppText style={styles.subtitle}>
-        Shared types wired: {demoHealth.service} ({demoHealth.ok ? 'ok' : 'down'})
-      </AppText>
-      <StatusBar style="auto" />
-    </View>
+    <NavigationContainer theme={navTheme}>
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      <RootTabs />
+    </NavigationContainer>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    textAlign: 'center',
-    opacity: 0.7,
-  },
-});
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <ApiProvider>
+          <ThemeProvider>
+            <NavigationRoot />
+          </ThemeProvider>
+        </ApiProvider>
+      </QueryClientProvider>
+    </SafeAreaProvider>
+  );
+}

@@ -11,6 +11,19 @@ const activeWhere = (userId: string): Prisma.GoalWhereInput => ({
   userId,
   deletedAt: null,
   archivedAt: null,
+  status: { in: [GoalStatus.ACTIVE, GoalStatus.PAUSED] },
+});
+
+const completedWhere = (userId: string): Prisma.GoalWhereInput => ({
+  userId,
+  deletedAt: null,
+  archivedAt: null,
+  status: GoalStatus.COMPLETED,
+});
+
+const deletedWhere = (userId: string): Prisma.GoalWhereInput => ({
+  userId,
+  deletedAt: { not: null },
 });
 
 const archivedWhere = (userId: string): Prisma.GoalWhereInput => ({
@@ -72,6 +85,32 @@ export class GoalsService {
       orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
     });
     return rows.map((g) => this.mapGoal(g));
+  }
+
+  async listCompleted(user: AuthUser): Promise<GoalResponse[]> {
+    const rows = await this.prisma.goal.findMany({
+      where: completedWhere(user.userId),
+      orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+    });
+    return rows.map((g) => this.mapGoal(g));
+  }
+
+  async listDeleted(user: AuthUser): Promise<GoalResponse[]> {
+    const rows = await this.prisma.goal.findMany({
+      where: deletedWhere(user.userId),
+      orderBy: [{ updatedAt: 'desc' }],
+    });
+    return rows.map((g) => this.mapGoal(g));
+  }
+
+  async getById(user: AuthUser, id: string): Promise<GoalResponse> {
+    const g = await this.prisma.goal.findFirst({
+      where: { id, userId: user.userId },
+    });
+    if (!g) {
+      throw new NotFoundException('Goal not found');
+    }
+    return this.mapGoal(g);
   }
 
   async update(user: AuthUser, id: string, dto: UpdateGoalDto): Promise<GoalResponse> {

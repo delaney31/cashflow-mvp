@@ -91,6 +91,7 @@ model User {
   alerts                 Alert[]
   scenarios              Scenario[]
   dailyCashflowSnapshots DailyCashflowSnapshot[]
+  pushDevices          PushDevice[]
 
   @@map("users")
 }
@@ -423,4 +424,38 @@ model DailyCashflowSnapshot {
   @@unique([userId, date])
   @@index([userId, date(sort: Desc)])
   @@map("daily_cashflow_snapshots")
+}
+
+/// Registered mobile push tokens (Expo / FCM hooks).
+model PushDevice {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  platform  String?  @map("platform")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_devices")
+}
+
+/// Persisted failed (and optionally completed) background jobs for observability.
+model BackgroundJobLog {
+  id         String   @id @default(cuid())
+  queueName  String   @map("queue_name")
+  jobName    String   @map("job_name")
+  bullJobId  String?  @map("bull_job_id")
+  payload    Json?    @map("payload")
+  status     String   @map("status")
+  error      String?  @map("error") @db.Text
+  durationMs Int?     @map("duration_ms")
+  attempts   Int      @default(1) @map("attempts")
+  userId     String?  @map("user_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([queueName, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("background_job_logs")
 }

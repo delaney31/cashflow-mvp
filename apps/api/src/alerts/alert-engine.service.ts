@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AlertSeverity, GoalStatus, GoalType, Prisma, TransactionStatus } from '@cashflow/db';
 import { BudgetEngineService } from '../budgets/budget-engine.service';
+import { CriticalAlertNotifierService } from '../notifications/critical-alert-notifier.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   AlertTypes,
@@ -29,6 +30,7 @@ export class AlertEngineService {
     private readonly prisma: PrismaService,
     private readonly budgetEngine: BudgetEngineService,
     private readonly config: ConfigService,
+    private readonly criticalNotifier: CriticalAlertNotifierService,
   ) {}
 
   private largeTxMinUsd(): Prisma.Decimal {
@@ -320,7 +322,7 @@ export class AlertEngineService {
     metadata?: Record<string, unknown>;
   }): Promise<void> {
     const { userId, dedupeKey, severity, alertType, title, body, metadata } = params;
-    await this.prisma.alert.upsert({
+    const row = await this.prisma.alert.upsert({
       where: {
         userId_dedupeKey: { userId, dedupeKey },
       },
@@ -342,6 +344,11 @@ export class AlertEngineService {
         resolvedAt: null,
       },
     });
+    if (severity === AlertSeverity.CRITICAL) {
+      void this.criticalNotifier.notifyAlertCreated(userId, row).catch((err: unknown) => {
+        this.logger.warn(`Critical alert push failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    }
   }
 
   /** Returns 1 if a row was resolved, else 0. */

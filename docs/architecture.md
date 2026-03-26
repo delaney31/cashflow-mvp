@@ -13,12 +13,13 @@ This repository is a TypeScript monorepo for a mobile-first cash flow product.
 | `packages/ui` | Reusable React Native UI primitives and components |
 | `docs` | Design notes and ADRs (add as the product grows) |
 
-## Data flow (planned)
+## Data flow
 
-1. **Plaid** connects accounts; tokens and institution metadata are stored via `packages/db`.
-2. **API** orchestrates sync, aggregation, caps, goals, and alerts.
-3. **OpenAI** assists with categorization, explanations, and chat; prompts and outputs stay server-side where possible.
-4. **Mobile** consumes REST (or future GraphQL) endpoints and renders balances, forecasts, and the assistant UI.
+1. **Plaid** connects accounts; tokens and institution metadata persist via `packages/db`.
+2. **API** orchestrates sync, budgets, goals, alerts, optional **BullMQ** jobs, and **OpenAI** explanations.
+3. **Mobile** consumes REST under `/v1` (see `apps/mobile/src/api/http.ts`).
+
+Environment variables: **[ENVIRONMENT.md](./ENVIRONMENT.md)** (root `.env.example` is a short template).
 
 ## Database (MVP schema)
 
@@ -39,7 +40,4 @@ PostgreSQL tables are defined in `packages/db/prisma/schema.prisma` and migrated
 
 ## Environment variables
 
-- **Server secrets** (Plaid, OpenAI, database URLs) live only in API and tooling — never in the mobile bundle.
-- **Expo public config** uses the `EXPO_PUBLIC_` prefix for values intentionally exposed to the client.
-
-See root `.env.example` for a consolidated list.
+See **[ENVIRONMENT.md](./ENVIRONMENT.md)** and root `.env.example`.

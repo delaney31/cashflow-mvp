@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 
-/** Mock user id for all JWT-backed requests until real auth is wired. */
+/** Mock user id for all JWT-backed requests until real auth is wired. Must match `packages/db/prisma/seed.ts`. */
 export const MOCK_USER_ID = 'usr_mock_mvp_001';
 export const MOCK_USER_EMAIL = 'demo@cashflow.app';
 

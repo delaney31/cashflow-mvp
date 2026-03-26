@@ -33,7 +33,8 @@ export class GoalsController {
   @Get()
   @ApiOperation({
     summary: 'List active goals',
-    description: 'Non-deleted goals that are not archived. Soft-deleted goals are excluded.',
+    description:
+      'Non-deleted, non-archived goals with status ACTIVE or PAUSED. Completed / archived / cancelled goals use other list endpoints.',
   })
   @ApiOkResponse({ type: GoalResponseDto, isArray: true })
   listActive(@CurrentUser() user: AuthUser): Promise<GoalResponse[]> {
@@ -48,6 +49,33 @@ export class GoalsController {
   @ApiOkResponse({ type: GoalResponseDto, isArray: true })
   listArchived(@CurrentUser() user: AuthUser): Promise<GoalResponse[]> {
     return this.goals.listArchived(user);
+  }
+
+  @Get('completed')
+  @ApiOperation({
+    summary: 'List completed goals',
+    description: 'Non-deleted, non-archived goals with status COMPLETED.',
+  })
+  @ApiOkResponse({ type: GoalResponseDto, isArray: true })
+  listCompleted(@CurrentUser() user: AuthUser): Promise<GoalResponse[]> {
+    return this.goals.listCompleted(user);
+  }
+
+  @Get('deleted')
+  @ApiOperation({
+    summary: 'List soft-deleted goals',
+    description: 'Goals with `deletedAt` set, for restore flows.',
+  })
+  @ApiOkResponse({ type: GoalResponseDto, isArray: true })
+  listDeleted(@CurrentUser() user: AuthUser): Promise<GoalResponse[]> {
+    return this.goals.listDeleted(user);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get goal by id', description: 'Includes soft-deleted rows (for detail / restore flows).' })
+  @ApiOkResponse({ type: GoalResponseDto })
+  getById(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<GoalResponse> {
+    return this.goals.getById(user, id);
   }
 
   @Patch(':id')

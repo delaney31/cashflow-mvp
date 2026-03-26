@@ -231,6 +231,23 @@ export class PlaidSyncService {
     await this.syncItemByPlaidItemId(body.item_id);
   }
 
+  /**
+   * Background job entry: sync one Plaid item by internal `plaid_items.id` (no JWT).
+   * Reuses the same per-item serialization as webhooks.
+   */
+  async syncPlaidItemByRecordId(recordId: string): Promise<void> {
+    const item = await this.prisma.plaidItem.findUnique({ where: { id: recordId } });
+    if (!item) {
+      this.logger.warn(`syncPlaidItemByRecordId: PlaidItem not found ${recordId}`);
+      return;
+    }
+    const accessToken = this.decryptAccessToken(item.accessTokenEnc);
+    await this.enqueuePlaidItemWork(item.id, async () => {
+      await this.refreshBalancesForPlaidItem(item.id, accessToken);
+      await this.syncTransactionsForPlaidItem(item.id, accessToken, item.transactionsCursor);
+    });
+  }
+
   async refreshBalancesForUser(userId: string): Promise<void> {
     const items = await this.prisma.plaidItem.findMany({ where: { userId } });
     for (const item of items) {

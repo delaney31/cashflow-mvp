@@ -61,6 +61,43 @@ export class BudgetEngineService {
     return { start, end };
   }
 
+  /**
+   * Posted transactions for the calendar month: sum of raw amounts (Plaid-style: positive = outflow).
+   * Linear projection to month-end; surplus = negative of that sum (positive surplus = net cash building).
+   */
+  async getProjectedMonthlyNetCashFlow(
+    userId: string,
+    year: number,
+    month: number,
+    now: Date,
+  ): Promise<{
+    mtdNetSum: Prisma.Decimal;
+    projectedNetSum: Prisma.Decimal;
+    projectedMonthlySurplus: Prisma.Decimal;
+  }> {
+    const { start, end } = this.monthBoundsUtc(year, month);
+    const rows = await this.prisma.transaction.findMany({
+      where: {
+        linkedAccount: { userId },
+        status: TransactionStatus.POSTED,
+        date: { gte: start, lte: end },
+      },
+      select: { amount: true },
+    });
+    let mtd = ZERO;
+    for (const r of rows) {
+      mtd = mtd.add(r.amount);
+    }
+    const elapsed = daysElapsedInMonthUtc(year, month, now);
+    const projectedNetSum =
+      elapsed > 0 ? linearForecastMonthEnd(mtd, year, month, now) : ZERO;
+    return {
+      mtdNetSum: mtd,
+      projectedNetSum,
+      projectedMonthlySurplus: projectedNetSum.neg(),
+    };
+  }
+
   paceStatus(mtdSpend: Prisma.Decimal, expectedToDate: Prisma.Decimal | null): BudgetPaceStatus {
     if (!expectedToDate || expectedToDate.lte(0)) return 'on_track';
     const ratio = mtdSpend.div(expectedToDate);

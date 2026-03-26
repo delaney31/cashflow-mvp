@@ -15,6 +15,7 @@
     "generate": "prisma generate",
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
+    "seed": "prisma db seed",
     "build": "npm run generate && tsc -p tsconfig.build.json",
     "clean": "rm -rf dist",
     "lint": "eslint src",
@@ -25,6 +26,10 @@
   },
   "devDependencies": {
     "prisma": "^6.1.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.7.2"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }

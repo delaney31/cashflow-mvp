@@ -21,6 +21,7 @@
     "db:generate": "npm run generate -w @cashflow/db",
     "db:migrate": "npm run migrate:dev -w @cashflow/db",
     "db:migrate:deploy": "npm run migrate:deploy -w @cashflow/db",
+    "db:seed": "npm run seed -w @cashflow/db",
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {

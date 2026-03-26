@@ -1,22 +1,42 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsObject, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
+import { ScenarioAdjustmentDto } from './scenario-adjustment.dto';
 
 export class CreateScenarioDto {
-  @ApiProperty({ example: 'What if rent +$200?', description: 'Human-readable label' })
+  @ApiProperty({ example: 'Buy a car' })
   @IsString()
   @MinLength(1)
   @MaxLength(200)
   name!: string;
 
-  @ApiProperty({
-    example: { horizonMonths: 3, expenseDelta: -200 },
-    description: 'Structured scenario inputs (MVP: echoed in mock output)',
+  @ApiPropertyOptional({
+    description: 'Months to project buffer forward after one-time effects (linear, deterministic).',
+    default: 12,
+    minimum: 1,
+    maximum: 120,
   })
-  @IsObject()
-  inputs!: Record<string, unknown>;
-
-  @ApiPropertyOptional({ description: 'Optional precomputed outputs (ignored in MVP mock)' })
   @IsOptional()
-  @IsObject()
-  outputs?: Record<string, unknown>;
+  @IsInt()
+  @Min(1)
+  @Max(120)
+  horizonMonths?: number;
+
+  @ApiProperty({ type: [ScenarioAdjustmentDto] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => ScenarioAdjustmentDto)
+  adjustments!: ScenarioAdjustmentDto[];
 }

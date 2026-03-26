@@ -1,9 +1,25 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthUser } from '../common/interfaces/auth-user.interface';
 import type { ScenarioResponse } from '../contracts/api-responses';
 import { CreateScenarioDto } from './dto/create-scenario.dto';
+import { ScenarioResponseDto } from './dto/scenario-response.dto';
 import { ScenariosService } from './scenarios.service';
 
 @ApiTags('scenarios')
@@ -12,38 +28,40 @@ import { ScenariosService } from './scenarios.service';
 export class ScenariosController {
   constructor(private readonly scenarios: ScenariosService) {}
 
-  /**
-   * @openapi
-   * operationId: listScenarios
-   * summary: List saved cashflow scenarios
-   */
   @Get()
   @ApiOperation({
-    summary: 'List scenarios',
-    description: 'Returns stored scenario runs with JSON inputs/outputs (mock; in-memory for MVP).',
+    summary: 'List saved scenarios',
+    description: 'Returns scenarios for the current user with structured inputs and deterministic outputs.',
   })
-  @ApiResponse({ status: 200, description: 'Scenarios' })
-  list(@CurrentUser() user: AuthUser): ScenarioResponse[] {
+  @ApiOkResponse({ type: ScenarioResponseDto, isArray: true })
+  list(@CurrentUser() user: AuthUser): Promise<ScenarioResponse[]> {
     return this.scenarios.list(user);
   }
 
-  /**
-   * @openapi
-   * operationId: createScenario
-   * summary: Create a scenario (mock projection)
-   */
+  @Get(':id')
+  @ApiOperation({ summary: 'Get scenario by id' })
+  @ApiOkResponse({ type: ScenarioResponseDto })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  getById(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+  ): Promise<ScenarioResponse> {
+    return this.scenarios.getById(user, id);
+  }
+
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Create scenario',
-    description: 'Persists inputs and mock outputs until AI layer is added.',
+    summary: 'Create and evaluate a scenario',
+    description:
+      'Runs deterministic what-if math (monthly surplus from posted transactions, buffer from account balances), persists inputs and outputs.',
   })
-  @ApiResponse({ status: 201, description: 'Scenario created' })
+  @ApiCreatedResponse({ type: ScenarioResponseDto })
   @ApiResponse({ status: 400, description: 'Validation error' })
   create(
     @CurrentUser() user: AuthUser,
     @Body() dto: CreateScenarioDto,
-  ): ScenarioResponse {
+  ): Promise<ScenarioResponse> {
     return this.scenarios.create(user, dto);
   }
 }

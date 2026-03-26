@@ -7,5 +7,6 @@ import { BalancesService } from './balances.service';
   imports: [PlaidModule],
   controllers: [BalancesController],
   providers: [BalancesService],
+  exports: [BalancesService],
 })
 export class BalancesModule {}

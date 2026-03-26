@@ -1,126 +1,103 @@
 # Cashflow MVP (monorepo)
 
-Production-oriented scaffold for a mobile-first AI cash flow app: **Expo** (React Native), **NestJS** API, **PostgreSQL** via **Prisma**, shared **TypeScript** types, and **Turborepo** for orchestration.
-
-Business logic (Plaid sync, OpenAI, caps, goals, alerts) is intentionally **not** implemented here—only architecture, tooling, and thin wiring.
+Mobile-first cash flow app: **Expo** (React Native), **NestJS** API, **PostgreSQL** via **Prisma**, shared **TypeScript**, **Turborepo** orchestration. Core flows include Plaid sync, budgets, goals, alerts, background jobs (BullMQ), and an AI coach (OpenAI).
 
 ## Repository layout
 
 | Path | Description |
 |------|-------------|
 | `apps/mobile` | Expo app (`@cashflow/mobile`) |
-| `apps/api` | NestJS HTTP API (`@cashflow/api`) |
-| `packages/shared` | Shared types and API contract shapes |
-| `packages/db` | Prisma schema and client re-export |
+| `apps/api` | NestJS HTTP API (`@cashflow/api`), `/v1` prefix |
+| `packages/shared` | Shared types |
+| `packages/db` | Prisma schema, migrations, seed |
 | `packages/ui` | Shared React Native UI primitives |
-| `docs/` | Architecture notes |
+| `docs/` | Environment reference, architecture notes |
 
-The API uses **NestJS** (rather than Next.js) so the backend stays a dedicated service layer and can scale or deploy independently of any web front end.
+API contracts for JSON responses live in `apps/api/src/contracts/api-responses.ts`; the mobile client mirrors shapes in `apps/mobile/src/api/types.ts`.
 
 ## Prerequisites
 
 - **Node.js** 20+
-- **npm** 9+ (workspaces; repo pins `packageManager` in root `package.json`)
-- **PostgreSQL** 14+ (local or hosted) for Prisma and future migrations
+- **npm** 9+ (workspaces)
+- **PostgreSQL** 14+ for Prisma
+- **Redis** (optional) for background workers — omit `REDIS_URL` to run the API without queues
 
-## Setup
+## Quick start (local)
 
-1. **Install dependencies** (from the repo root):
+1. **Install dependencies** (repo root):
 
    ```bash
-   cd cashflow-mvp
    npm install
    ```
 
-2. **Environment variables**
+2. **Configure environment**
 
-   - Copy the root template and adjust values:
+   - Copy templates and adjust:
 
      ```bash
      cp .env.example .env
+     cp apps/api/.env.example apps/api/.env
+     cp apps/mobile/.env.example apps/mobile/.env
      ```
 
-   - For Prisma CLI and the API, ensure `DATABASE_URL` is set. You can copy `packages/db/.env.example` to `packages/db/.env` or rely on root `.env` when running commands from the monorepo root (Prisma loads `.env` from the schema directory and cwd).
+   - Set `DATABASE_URL` everywhere Prisma or the API needs it.
+   - Full variable reference: **[docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)**.
 
-   - Copy `apps/api/.env.example` to `apps/api/.env` for local API runs (or use root `.env` with `ConfigModule` loading `.env` from the cwd when you start the API from `apps/api`).
-
-   - For the mobile app, use `apps/mobile/.env.example` as a template. **Only** variables prefixed with `EXPO_PUBLIC_` are exposed to the client bundle.
-
-3. **Generate Prisma Client** (after `DATABASE_URL` is available for `prisma generate`):
+3. **Database: migrate and seed**
 
    ```bash
    npm run db:generate
+   npm run db:migrate -w @cashflow/db
+   npm run db:seed
    ```
 
-4. **Build internal packages** (shared, db, ui, API):
+   Seed creates the mock JWT user (`usr_mock_mvp_001`), a monthly budget cap, and a sample goal so the dashboard has data **without Plaid**. Use the same id as in `POST /v1/auth/login` (see [Auth](#auth)).
+
+4. **Build internal packages** (first time or after shared/db changes):
 
    ```bash
    npm run build
    ```
 
-## Development
+## Development workflow
 
-- **API (NestJS)** — watch mode:
+| Goal | Command |
+|------|---------|
+| API (watch) | `npm run dev:api` — default **http://localhost:3000** · OpenAPI **http://localhost:3000/docs** · Health **GET http://localhost:3000/health** (no `/v1`) |
+| Mobile (Expo) | `npm run dev:mobile` or `cd apps/mobile && npx expo start` |
+| API + mobile (parallel) | `npm run dev` |
 
-  ```bash
-  npm run dev:api
-  ```
+**Auth (development):** `POST http://localhost:3000/v1/auth/login` with JSON `{ "email": "you@example.com", "password": "anything" }` — password is ignored; response includes `accessToken`. Set `JWT_SECRET` in `apps/api/.env`.
 
-  Default port is **3000** (override with `PORT` in `.env`). Health check: `GET http://localhost:3000/health` (no auth). API routes are under **`/v1`** (e.g. `GET /v1/users/me` with `Authorization: Bearer <token>`). Interactive docs: **`http://localhost:3000/docs`**. Mock login: `POST /v1/auth/login` with JSON `{ "email": "you@example.com", "password": "anything" }` — set `JWT_SECRET` in `.env` first.
+**Mobile → API:** In `apps/mobile/.env`, set `EXPO_PUBLIC_API_URL=http://localhost:3000/v1` and optionally `EXPO_PUBLIC_API_TOKEN=<paste accessToken>` for the simulator (see `apps/mobile/src/api/env.ts`).
 
-- **Mobile (Expo)**:
-
-  ```bash
-  npm run dev:mobile
-  ```
-
-  Or from `apps/mobile`: `npx expo start`.
-
-- **Run both** (API + Expo in parallel via Turborepo):
-
-  ```bash
-  npm run dev
-  ```
+**Background jobs:** With `REDIS_URL` set, the API enqueues Plaid sync, forecast snapshots, recurring detection, and alert evaluation on a schedule. See `docs/ENVIRONMENT.md`.
 
 ## Quality checks
 
 ```bash
 npm run lint
-npm run format        # Prettier write
-npm run format:check
 npm run typecheck
+npm run format:check
 ```
-
-## Shared types
-
-`@cashflow/shared` compiles to `packages/shared/dist` and is consumed by the API (CommonJS) and by the mobile app (for type-only imports and future runtime helpers). After changing shared sources, run `npm run build` or build only the shared package.
 
 ## Database
 
-- **Schema**: `packages/db/prisma/schema.prisma` (users, institutions, linked accounts, balances, transactions with pending/posted + AI vs user categories, recurring patterns, monthly budgets, goals with soft delete, alerts, scenarios, daily cashflow snapshots).
-- **Migrations**: SQL lives under `packages/db/prisma/migrations/`. Apply to your Postgres instance:
+- **Schema:** `packages/db/prisma/schema.prisma`
+- **Migrations:** `packages/db/prisma/migrations/`
+- **Seed:** `npm run db:seed` — idempotent upserts for local testing
 
-  ```bash
-  npm run migrate:deploy -w @cashflow/db
-  ```
-
-  Or create new migrations during development:
-
-  ```bash
-  npm run migrate:dev -w @cashflow/db
-  ```
-
-  (Requires `DATABASE_URL` and a running PostgreSQL instance.)
-
-- **TypeScript**: import models and helpers from `@cashflow/db` (Prisma client plus payload aliases in `packages/db/src/types.ts`).
-
-## Tech choices in this scaffold
-
-- **Monorepo**: npm workspaces + Turborepo
-- **Linting / formatting**: ESLint 9 (flat config) + Prettier
-- **Mobile**: Expo SDK 55 (generated by `create-expo-app`), Metro configured to resolve packages from the repo root
-- **API**: NestJS with `@nestjs/config` for environment-based configuration
+```bash
+npm run db:migrate:deploy -w @cashflow/db   # CI / production
+```
 
 ## Documentation
 
-See `docs/architecture.md` for a high-level map of how components are expected to grow.
+- **[docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)** — environment variables
+- **[docs/architecture.md](docs/architecture.md)** — high-level map
+
+## Tech stack
+
+- Monorepo: npm workspaces + Turborepo  
+- API: NestJS, JWT, Prisma, BullMQ (optional), OpenAI (optional), Plaid (optional)  
+- Mobile: Expo SDK 55, React Navigation, TanStack Query  

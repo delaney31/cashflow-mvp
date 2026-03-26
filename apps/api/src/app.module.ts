@@ -10,6 +10,8 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { GoalsModule } from './goals/goals.module';
 import { HealthModule } from './health/health.module';
+import { PlaidModule } from './plaid/plaid.module';
+import { PrismaModule } from './prisma/prisma.module';
 import { ScenariosModule } from './scenarios/scenarios.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { UsersModule } from './users/users.module';
@@ -20,6 +22,8 @@ import { UsersModule } from './users/users.module';
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
     }),
+    PrismaModule,
+    PlaidModule,
     AuthModule,
     HealthModule,
     UsersModule,

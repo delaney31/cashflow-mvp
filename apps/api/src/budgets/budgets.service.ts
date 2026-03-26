@@ -1,47 +1,75 @@
 import { Injectable } from '@nestjs/common';
 import type { AuthUser } from '../common/interfaces/auth-user.interface';
 import type { MonthlyBudgetResponse } from '../contracts/api-responses';
+import type { BudgetMonthDashboardResponse } from './budget-dashboard.types';
+import { BudgetEngineService } from './budget-engine.service';
+import type { BudgetDashboardQueryDto } from './dto/budget-dashboard-query.dto';
 import type { MonthlyBudgetQueryDto } from './dto/monthly-budget-query.dto';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class BudgetsService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly engine: BudgetEngineService,
+  ) {}
+
   /**
-   * @openapi
-   * summary: Month-scoped budget with category lines (mock)
+   * Persisted budget lines for a calendar month (empty if none saved).
    */
-  getMonthly(_user: AuthUser, query: MonthlyBudgetQueryDto): MonthlyBudgetResponse {
+  async getMonthly(user: AuthUser, query: MonthlyBudgetQueryDto): Promise<MonthlyBudgetResponse> {
     const d = new Date();
     const year = query.year ?? d.getUTCFullYear();
     const month = query.month ?? d.getUTCMonth() + 1;
 
+    const row = await this.prisma.monthlyBudget.findFirst({
+      where: { userId: user.userId, year, month },
+      include: { categories: { orderBy: { sortOrder: 'asc' } } },
+    });
+
+    if (!row) {
+      return {
+        id: `placeholder_${year}_${month}`,
+        year,
+        month,
+        currency: 'USD',
+        totalBudgetCap: null,
+        categories: [],
+      };
+    }
+
     return {
-      id: `mb_${year}_${String(month).padStart(2, '0')}`,
+      id: row.id,
+      year: row.year,
+      month: row.month,
+      currency: row.currency,
+      totalBudgetCap: row.totalBudgetCap ? row.totalBudgetCap.toString() : null,
+      categories: row.categories.map((c) => ({
+        id: c.id,
+        name: c.name,
+        categoryId: c.categoryId,
+        allocatedAmount: c.allocatedAmount.toString(),
+        sortOrder: c.sortOrder,
+      })),
+    };
+  }
+
+  /**
+   * Spending-cap engine: MTD, forecast, pace, category vs uncategorized, posted/pending/all.
+   */
+  async getMonthDashboard(
+    user: AuthUser,
+    query: BudgetDashboardQueryDto,
+  ): Promise<BudgetMonthDashboardResponse> {
+    const d = new Date();
+    const year = query.year ?? d.getUTCFullYear();
+    const month = query.month ?? d.getUTCMonth() + 1;
+    return this.engine.buildDashboard({
+      userId: user.userId,
       year,
       month,
-      currency: 'USD',
-      categories: [
-        {
-          id: 'bc_001',
-          name: 'Groceries',
-          categoryId: 'cat_food_001',
-          allocatedAmount: '600.00',
-          sortOrder: 0,
-        },
-        {
-          id: 'bc_002',
-          name: 'Dining Out',
-          categoryId: 'cat_dining_001',
-          allocatedAmount: '200.00',
-          sortOrder: 1,
-        },
-        {
-          id: 'bc_003',
-          name: 'Transit',
-          categoryId: null,
-          allocatedAmount: '120.00',
-          sortOrder: 2,
-        },
-      ],
-    };
+      transactionView: query.transactionView,
+      now: d,
+    });
   }
 }

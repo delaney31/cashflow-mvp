@@ -1,87 +1,75 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@cashflow/db';
 import type { AuthUser } from '../common/interfaces/auth-user.interface';
 import type { PaginatedResponse, TransactionResponse } from '../contracts/api-responses';
 import type { TransactionsQueryDto } from './dto/transactions-query.dto';
-
-const ALL: TransactionResponse[] = [
-  {
-    id: 'txn_001',
-    linkedAccountId: 'la_chk_001',
-    amount: '-42.50',
-    currency: 'USD',
-    status: 'POSTED',
-    date: '2025-03-20',
-    postedAt: '2025-03-21T08:00:00.000Z',
-    name: 'Whole Foods',
-    merchantName: 'Whole Foods Market',
-    aiCategoryId: 'cat_food_001',
-    aiCategoryName: 'Groceries',
-    userCategoryId: null,
-    userCategoryName: null,
-  },
-  {
-    id: 'txn_002',
-    linkedAccountId: 'la_chk_001',
-    amount: '-9.00',
-    currency: 'USD',
-    status: 'PENDING',
-    date: '2025-03-25',
-    postedAt: null,
-    name: 'Coffee Shop',
-    merchantName: 'Blue Bottle',
-    aiCategoryId: 'cat_dining_001',
-    aiCategoryName: 'Dining',
-    userCategoryId: 'cat_food_001',
-    userCategoryName: 'Groceries',
-  },
-  {
-    id: 'txn_003',
-    linkedAccountId: 'la_sv_002',
-    amount: '2500.00',
-    currency: 'USD',
-    status: 'POSTED',
-    date: '2025-03-01',
-    postedAt: '2025-03-01T12:00:00.000Z',
-    name: 'Employer Payroll',
-    merchantName: null,
-    aiCategoryId: null,
-    aiCategoryName: null,
-    userCategoryId: null,
-    userCategoryName: null,
-  },
-];
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class TransactionsService {
-  /**
-   * @openapi
-   * summary: Paginated transactions with optional filters (mock)
-   */
-  list(_user: AuthUser, query: TransactionsQueryDto): PaginatedResponse<TransactionResponse> {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async list(
+    user: AuthUser,
+    query: TransactionsQueryDto,
+  ): Promise<PaginatedResponse<TransactionResponse>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    let rows = [...ALL];
+    const skip = (page - 1) * limit;
 
+    const where: Prisma.TransactionWhereInput = {
+      linkedAccount: { userId: user.userId },
+    };
     if (query.linkedAccountId) {
-      rows = rows.filter((t) => t.linkedAccountId === query.linkedAccountId);
+      where.linkedAccountId = query.linkedAccountId;
     }
-    if (query.from) {
-      rows = rows.filter((t) => t.date >= query.from!.slice(0, 10));
-    }
-    if (query.to) {
-      rows = rows.filter((t) => t.date <= query.to!.slice(0, 10));
+    if (query.from || query.to) {
+      where.date = {};
+      if (query.from) {
+        where.date.gte = new Date(`${query.from.slice(0, 10)}T00:00:00.000Z`);
+      }
+      if (query.to) {
+        where.date.lte = new Date(`${query.to.slice(0, 10)}T23:59:59.999Z`);
+      }
     }
 
-    const total = rows.length;
-    const start = (page - 1) * limit;
-    const items = rows.slice(start, start + limit);
+    const [rows, total] = await Promise.all([
+      this.prisma.transaction.findMany({
+        where,
+        include: {
+          aiCategory: true,
+          userCategory: true,
+        },
+        orderBy: [{ date: 'desc' }, { id: 'desc' }],
+        skip,
+        take: limit,
+      }),
+      this.prisma.transaction.count({ where }),
+    ]);
+
+    const items: TransactionResponse[] = rows.map((t) => ({
+      id: t.id,
+      linkedAccountId: t.linkedAccountId,
+      amount: t.amount.toString(),
+      currency: t.currency,
+      status: t.status as TransactionResponse['status'],
+      date: t.date.toISOString().slice(0, 10),
+      postedAt: t.postedAt ? t.postedAt.toISOString() : null,
+      name: t.name,
+      merchantName: t.merchantName,
+      aiCategoryId: t.aiCategoryId,
+      aiCategoryName: t.aiCategory?.name ?? null,
+      userCategoryId: t.userCategoryId,
+      userCategoryName: t.userCategory?.name ?? null,
+    }));
+
     return {
       items,
       meta: {
         page,
         limit,
         total,
-        hasMore: start + items.length < total,
+        hasMore: skip + items.length < total,
       },
     };
   }

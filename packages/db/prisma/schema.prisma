@@ -49,10 +49,15 @@ enum GoalStatus {
 }
 
 enum AlertSeverity {
+  /// Informational (dashboard “info” tier).
+  INFO
+  /// Action recommended (“warning” tier).
+  WARNING
+  /// Immediate attention (“critical” tier).
+  CRITICAL
   LOW
   MEDIUM
   HIGH
-  CRITICAL
 }
 
 enum LinkedAccountStatus {
@@ -79,6 +84,7 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   linkedAccounts         LinkedAccount[]
+  plaidItems             PlaidItem[]
   monthlyBudgets         MonthlyBudget[]
   categories             Category[]
   goals                  Goal[]
@@ -102,9 +108,41 @@ model Institution {
   updatedAt          DateTime @updatedAt @map("updated_at")
 
   linkedAccounts LinkedAccount[]
+  plaidItems     PlaidItem[]
 
   @@index([name])
   @@map("institutions")
+}
+
+/// Plaid Item (one bank connection) — holds encrypted access token and transaction sync cursor.
+model PlaidItem {
+  id                   String    @id @default(cuid())
+  userId               String    @map("user_id")
+  institutionId        String    @map("institution_id")
+  plaidItemId          String    @unique @map("plaid_item_id")
+  /// AES-256-GCM encrypted access token (base64 payload: iv + tag + ciphertext)
+  accessTokenEnc       String    @map("access_token_enc")
+  transactionsCursor   String?   @map("transactions_cursor")
+  lastSuccessfulSyncAt DateTime? @map("last_successful_sync_at")
+  lastSyncError        String?   @map("last_sync_error")
+  lastSyncErrorAt      DateTime? @map("last_sync_error_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institution     Institution     @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  linkedAccounts  LinkedAccount[]
+
+  @@index([userId])
+  @@map("plaid_items")
+}
+
+/// Prevents replaying identical Plaid webhook payloads (body hash) across instances.
+model PlaidWebhookDedupe {
+  bodyHash  String   @id @map("body_hash") @db.VarChar(64)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("plaid_webhook_dedupes")
 }
 
 /// A user’s linked bank account (one Plaid account under an item).
@@ -112,7 +150,7 @@ model LinkedAccount {
   id             String              @id @default(cuid())
   userId         String              @map("user_id")
   institutionId  String              @map("institution_id")
-  plaidItemId    String              @map("plaid_item_id")
+  plaidItemRecordId String           @map("plaid_item_record_id")
   plaidAccountId String              @map("plaid_account_id")
   name           String
   officialName   String?             @map("official_name")
@@ -121,19 +159,23 @@ model LinkedAccount {
   subtype        String?
   currency       String              @default("USD")
   status         LinkedAccountStatus @default(ACTIVE)
+  lastBalanceSyncAt     DateTime?    @map("last_balance_sync_at")
+  lastTransactionSyncAt DateTime?    @map("last_transaction_sync_at")
   createdAt      DateTime            @default(now()) @map("created_at")
   updatedAt      DateTime            @updatedAt @map("updated_at")
 
   user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   institution       Institution            @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  plaidItem         PlaidItem              @relation(fields: [plaidItemRecordId], references: [id], onDelete: Cascade)
   balanceSnapshots  BalanceSnapshot[]
   transactions      Transaction[]
   recurringPatterns RecurringTransaction[]
 
-  @@unique([plaidItemId, plaidAccountId])
+  @@unique([plaidItemRecordId, plaidAccountId])
   @@index([userId])
   @@index([institutionId])
   @@index([userId, status])
+  @@index([plaidItemRecordId])
   @@map("linked_accounts")
 }
 
@@ -249,14 +291,16 @@ model RecurringTransaction {
 
 /// One envelope per calendar month for a user (caps and planning).
 model MonthlyBudget {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  year      Int
-  month     Int
-  currency  String   @default("USD")
-  notes     String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id             String    @id @default(cuid())
+  userId         String    @map("user_id")
+  year           Int
+  month          Int
+  currency       String    @default("USD")
+  /// Optional overall month cap (in addition to per-category lines).
+  totalBudgetCap Decimal?  @map("total_budget_cap") @db.Decimal(19, 4)
+  notes          String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   categories BudgetCategory[]
@@ -328,12 +372,15 @@ model Alert {
   title      String
   body       String?
   metadata   Json?
+  /// Stable key for deduplication + idempotent background evaluation (e.g. `cap_exceeded:2025-03`).
+  dedupeKey  String        @map("dedupe_key")
   resolvedAt DateTime?     @map("resolved_at")
   createdAt  DateTime      @default(now()) @map("created_at")
   updatedAt  DateTime      @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, dedupeKey])
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, resolvedAt])
   @@index([severity])

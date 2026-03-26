@@ -15,19 +15,19 @@ export class TransactionsController {
   /**
    * @openapi
    * operationId: listTransactions
-   * summary: List transactions (paginated, mock)
+   * summary: List transactions (paginated)
    */
   @Get()
   @ApiOperation({
     summary: 'List transactions',
-    description: 'Pending and posted rows with AI vs user category fields (mock).',
+    description: 'Pending and posted rows with AI vs user category fields (Plaid-backed when linked).',
   })
   @ApiResponse({ status: 200, description: 'Paginated transactions' })
   @ApiResponse({ status: 400, description: 'Invalid query' })
-  list(
+  async list(
     @CurrentUser() user: AuthUser,
     @Query() query: TransactionsQueryDto,
-  ): PaginatedResponse<TransactionResponse> {
+  ): Promise<PaginatedResponse<TransactionResponse>> {
     return this.transactions.list(user, query);
   }
 }

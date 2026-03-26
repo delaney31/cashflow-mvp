@@ -19,11 +19,11 @@ export class AccountsController {
   @Get()
   @ApiOperation({
     summary: 'List accounts',
-    description: 'Linked depository accounts (mock; replace with Plaid-backed reads).',
+    description: 'Linked accounts from Plaid (persisted after token exchange).',
   })
   @ApiResponse({ status: 200, description: 'Linked accounts' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  list(@CurrentUser() user: AuthUser): LinkedAccountResponse[] {
+  async list(@CurrentUser() user: AuthUser): Promise<LinkedAccountResponse[]> {
     return this.accounts.list(user);
   }
 }

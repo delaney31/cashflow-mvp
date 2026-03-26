@@ -1,9 +1,10 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthUser } from '../common/interfaces/auth-user.interface';
 import type { BalanceResponse } from '../contracts/api-responses';
 import { BalancesService } from './balances.service';
+import { BalancesQueryDto } from './dto/balances-query.dto';
 
 @ApiTags('balances')
 @ApiBearerAuth('JWT-auth')
@@ -19,10 +20,10 @@ export class BalancesController {
   @Get()
   @ApiOperation({
     summary: 'List balances',
-    description: 'Latest balance per linked account (mock snapshots).',
+    description: 'Latest Plaid balance snapshot per linked account. Use `refresh=true` to pull from Plaid first.',
   })
   @ApiResponse({ status: 200, description: 'Balance rows' })
-  list(@CurrentUser() user: AuthUser): BalanceResponse[] {
-    return this.balances.list(user);
+  list(@CurrentUser() user: AuthUser, @Query() query: BalancesQueryDto): Promise<BalanceResponse[]> {
+    return this.balances.list(user, query);
   }
 }

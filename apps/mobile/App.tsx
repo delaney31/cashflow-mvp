@@ -1,7 +1,10 @@
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+void SplashScreen.preventAutoHideAsync();
 import { ApiProvider } from './src/api/ApiContext';
 import { RootTabs } from './src/navigation/RootTabs';
 import { ThemeProvider, useAppTheme } from './src/theme/ThemeContext';
@@ -43,7 +46,12 @@ function NavigationRoot() {
         };
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer
+      theme={navTheme}
+      onReady={() => {
+        void SplashScreen.hideAsync();
+      }}
+    >
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       <RootTabs />
     </NavigationContainer>

@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { ActivityIndicator, RefreshControl, StyleSheet, View } from 'react-native';
 import { AppText } from '@cashflow/ui';
+import { SpendingAwarenessIllustration } from '../components/illustrations/SpendingAwarenessIllustration';
 import { AlertListRow } from '../components/dashboard/AlertListRow';
 import { ControlCard } from '../components/dashboard/ControlCard';
 import { GoalProgressRow } from '../components/dashboard/GoalProgressRow';
@@ -44,6 +45,19 @@ export function DashboardScreen() {
   if (!token) {
     return (
       <ScreenShell title="Dashboard" subtitle="Financial control center — sign in to load data">
+        <View style={styles.awarenessBlock}>
+          <SpendingAwarenessIllustration
+            width={280}
+            height={122}
+            accent={colors.primary}
+            surface={colors.surface}
+            muted={colors.border}
+          />
+          <AppText style={[styles.awarenessCaption, { color: colors.textSecondary }]}>
+            See your spending patterns, pace, and limits in one place — so you can adjust habits before
+            month-end.
+          </AppText>
+        </View>
         <ControlCard title="Connect API">
           <AppText style={[styles.muted, { color: colors.textSecondary, lineHeight: 20 }]}>
             Set EXPO_PUBLIC_API_URL (default http://localhost:3000/v1) and EXPO_PUBLIC_API_TOKEN from POST
@@ -113,6 +127,21 @@ export function DashboardScreen() {
         ) : null}
       </View>
 
+      {isSparse ? (
+        <View style={styles.awarenessBlock}>
+          <SpendingAwarenessIllustration
+            width={280}
+            height={120}
+            accent={colors.primary}
+            surface={colors.surface}
+            muted={colors.border}
+          />
+          <AppText style={[styles.awarenessCaption, { color: colors.textSecondary }]}>
+            Stay aware of where money goes — link accounts and sync so pace and limits reflect real habits.
+          </AppText>
+        </View>
+      ) : null}
+
       <ControlCard variant="emphasis">
         <AppText style={[styles.heroLabel, { color: colors.textSecondary }]}>Current cash balance</AppText>
         <AppText style={[styles.heroValue, { color: colors.text }]}>{formatUsd(totalCash, currency)}</AppText>
@@ -171,6 +200,23 @@ export function DashboardScreen() {
           Month progress {Math.round(budget.pace.monthProgressFraction * 100)}% · view: {budget.transactionView}
         </AppText>
       </ControlCard>
+
+      {!isSparse ? (
+        <ControlCard title="Stay mindful">
+          <View style={styles.mindfulBlock}>
+            <SpendingAwarenessIllustration
+              width={248}
+              height={106}
+              accent={colors.primary}
+              surface={colors.surfaceMuted}
+              muted={colors.border}
+            />
+            <AppText style={[styles.mindfulCaption, { color: colors.textSecondary }]}>
+              Regular check-ins on pace and categories help you notice spending drift before it compounds.
+            </AppText>
+          </View>
+        </ControlCard>
+      ) : null}
 
       {isSparse ? (
         <ControlCard title="Getting started">
@@ -262,5 +308,26 @@ const styles = StyleSheet.create({
   },
   muted: {
     fontSize: 13,
+  },
+  awarenessBlock: {
+    alignItems: 'center',
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  awarenessCaption: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: spacing.sm,
+    maxWidth: 320,
+  },
+  mindfulBlock: {
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  mindfulCaption: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

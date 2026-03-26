@@ -5,11 +5,14 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  // Pooled URL (e.g. Neon pooler + ?pgbouncer=true) for the app runtime
-  url       = env("DATABASE_URL")
-  // Direct (non-pooled) URL for migrations — required when using a pooler; locally set equal to DATABASE_URL
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  // Runtime (API, `prisma db seed`): pooled connection string.
+  // Neon: dashboard "Pooled connection" / host contains `-pooler`; add `sslmode=require` and
+  // `pgbouncer=true` (Prisma + Neon's PgBouncer transaction pooler — see Neon Prisma guide).
+  url = env("DATABASE_URL")
+  // Migrations (`migrate dev|deploy`), `db pull`: direct session — not the pooler.
+  // Neon: "Direct connection" hostname (no `-pooler`). Local Postgres: same value as DATABASE_URL.
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 // ---------------------------------------------------------------------------

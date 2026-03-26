@@ -1,8 +1,25 @@
-# Render Blueprint — Cashflow API (NestJS) + external Neon PostgreSQL.
-# See README "Deploying the API (Render + Neon)" for Neon URLs and env vars.
+# =============================================================================
+# Render Blueprint — Cashflow API (NestJS, npm monorepo)
+# =============================================================================
+# - Single web service: backend API only (apps/mobile / Expo is not deployed).
+# - PostgreSQL: external Neon — connection strings are set in the Render dashboard.
+# - No secrets are hardcoded below (use sync: false; set values in the Dashboard).
 #
-# After first deploy, set DATABASE_URL (pooled), DIRECT_URL (direct), JWT_SECRET,
-# and any optional keys (REDIS_URL, Plaid, OpenAI) in the service Environment.
+# Apply: Render Dashboard → New → Blueprint → select repo / paste this file.
+# Spec: https://render.com/docs/blueprint-spec
+#
+# Branch: `branch` must match your GitHub default branch (e.g. main vs master).
+#
+# Build:
+# - Default DATABASE_URL / DIRECT_DATABASE_URL let `prisma generate` succeed even if
+#   "Include environment variables in the build" is off (no network connection).
+# - When build env is enabled, real Neon URLs override these defaults.
+#
+# Pre-deploy: runs `prisma migrate deploy` (requires DIRECT_DATABASE_URL at runtime).
+# Some Render plans require a paid tier for pre-deploy commands — see Render docs.
+#
+# Shutdown: allow time for Nest shutdown hooks (Prisma $disconnect).
+# =============================================================================
 
 services:
   - type: web
@@ -10,17 +27,33 @@ services:
     runtime: node
     region: oregon
     plan: starter
-    buildCommand: npm ci && npm run build
-    # Uses DATABASE_URL + DIRECT_URL from the service environment (no repo .env on Render)
-    preDeployCommand: npm run migrate:deploy -w @cashflow/db
+    branch: main
+    numInstances: 1
+
+    # Placeholder URLs only apply when env vars are unset during build (prisma generate).
+    buildCommand: export DATABASE_URL="${DATABASE_URL:-postgresql://build:build@127.0.0.1:5432/build?schema=public}" && export DIRECT_DATABASE_URL="${DIRECT_DATABASE_URL:-postgresql://build:build@127.0.0.1:5432/build?schema=public}" && npm ci && npx turbo run build --filter=@cashflow/api
+    preDeployCommand: npm run db:migrate:production
     startCommand: npm run start:prod -w @cashflow/api
+    maxShutdownDelaySeconds: 60
+
+    # GET /health — no /v1 prefix (see apps/api/src/main.ts).
     healthCheckPath: /health
+
     envVars:
       - key: NODE_ENV
         value: production
+      - key: HOST
+        value: 0.0.0.0
       - key: DATABASE_URL
         sync: false
-      - key: DIRECT_URL
+      - key: DIRECT_DATABASE_URL
         sync: false
       - key: JWT_SECRET
+        sync: false
+      # Required at API startup (PlaidModule). Use Plaid sandbox credentials until production.
+      - key: PLAID_CLIENT_ID
+        sync: false
+      - key: PLAID_SECRET
+        sync: false
+      - key: PLAID_TOKEN_ENCRYPTION_KEY
         sync: false

@@ -2,21 +2,23 @@
 
 Values are loaded from `.env`, `.env.local`, or per-app `apps/<app>/.env` depending on how you start processes. **Never commit secrets.**
 
-Root scripts **`npm run db:migrate`**, **`npm run db:migrate:deploy`**, and **`npm run db:seed`** load the **repository root** `.env` via `dotenv-cli` (`dotenv -e .env`). To run Prisma without that file (e.g. CI or Render), set `DATABASE_URL` and `DIRECT_URL` in the environment and invoke **`npm run migrate:deploy -w @cashflow/db`** (or `migrate:dev` / `seed` in the `@cashflow/db` workspace) directly. The API loads `apps/api/.env` when started from that app; keep URLs aligned with the root `.env` or use one file and symlink.
+Root scripts **`npm run db:migrate`**, **`npm run db:migrate:deploy`**, **`npm run db:migrate:status`**, and **`npm run db:seed`** load the **repository root** `.env` via `dotenv-cli` (`dotenv -e .env`). For production-style runs without a file (CI, Render, manual), set **`DATABASE_URL`** and **`DIRECT_DATABASE_URL`** and run **`npm run db:migrate:production`** (see **[MIGRATIONS.md](./MIGRATIONS.md)**). The API loads `apps/api/.env` when started from that app; keep URLs aligned with the root `.env` or use one file and symlink.
+
+**Neon / pooling details:** **[DATABASE.md](./DATABASE.md)**.
 
 ## Root / shared
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `DATABASE_URL` | Yes (DB + API) | PostgreSQL connection string for Prisma at runtime. On **Neon**, use the **pooled** connection string (includes `-pooler` in the host or connection pooling parameters). Append `?sslmode=require` if Neon provides it. |
-| `DIRECT_URL` | Yes | **Direct** (non-pooled) PostgreSQL URL for `prisma migrate` and introspection. For **local** Postgres, set **equal to** `DATABASE_URL`. On **Neon**, copy the **direct** connection string from the dashboard (different host than the pooler). |
+| `DIRECT_DATABASE_URL` | Yes | **Direct** (non-pooled) PostgreSQL URL for `prisma migrate` and introspection. For **local** Postgres, set **equal to** `DATABASE_URL`. On **Neon**, copy the **direct** connection string from the dashboard (different host than the pooler). |
 
 ### Neon PostgreSQL
 
 Neon exposes two connection strings:
 
 1. **Pooled** → set as `DATABASE_URL` (serverless-friendly, use with Prisma’s pooler settings; Neon often documents `pgbouncer=true` or similar in the query string).
-2. **Direct** → set as `DIRECT_URL` (used by Prisma migrations; avoids transaction limitations of poolers).
+2. **Direct** → set as `DIRECT_DATABASE_URL` (used by Prisma migrations; avoids transaction limitations of poolers).
 
 Both must be present wherever Prisma runs (local CLI, CI, Render **pre-deploy**). The API process uses `DATABASE_URL` for queries via Prisma Client.
 
@@ -27,7 +29,7 @@ Both must be present wherever Prisma runs (local CLI, CI, Render **pre-deploy**)
 | `PORT` | No | Injected by Render; the app reads `process.env.PORT` (default `3000` locally). |
 | `HOST` | No | Defaults to `0.0.0.0` so the service accepts external connections (Render). |
 | `DATABASE_URL` | Yes | Neon **pooled** URL. |
-| `DIRECT_URL` | Yes | Neon **direct** URL (for `preDeployCommand` migrations). |
+| `DIRECT_DATABASE_URL` | Yes | Neon **direct** URL (for `preDeployCommand` migrations). |
 | `JWT_SECRET` | Yes | Strong secret for HS256. |
 | `REDIS_URL` | No | Omit if you are not running Redis; background jobs stay disabled. |
 | Others | No | Plaid, OpenAI, Expo push — see API table below. |
@@ -42,7 +44,7 @@ Both must be present wherever Prisma runs (local CLI, CI, Render **pre-deploy**)
 | `JWT_SECRET` | Yes (prod) | HS256 secret; min 32 chars recommended. |
 | `JWT_EXPIRES_SEC` | No | Access token TTL in seconds (default 7 days). |
 | `DATABASE_URL` | Yes | Same as root (pooled on Neon). |
-| `DIRECT_URL` | Yes | Same as root (direct on Neon; locally same as `DATABASE_URL`). |
+| `DIRECT_DATABASE_URL` | Yes | Same as root (direct on Neon; locally same as `DATABASE_URL`). |
 | `OPENAI_API_KEY` | For AI Coach | OpenAI API key. |
 | `OPENAI_MODEL` | No | Model id (default `gpt-4o-mini`). |
 | `PLAID_CLIENT_ID` / `PLAID_SECRET` / `PLAID_ENV` | For Plaid | Sandbox or production Plaid credentials. |

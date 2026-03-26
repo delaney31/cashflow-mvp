@@ -15,8 +15,8 @@ Content-Type: application/json
 
 | Step | What to do |
 |------|------------|
-| **Postgres** | Running and reachable via `DATABASE_URL` (and **`DIRECT_URL`** — match locally or use Neon’s direct URL). |
-| **Migrations** | From repo root with root `.env`: **`npm run db:migrate:deploy`**. Or with env in the shell: `DATABASE_URL=... DIRECT_URL=... npm run migrate:deploy -w @cashflow/db` (applies all pending migrations, including Plaid tables). |
+| **Postgres** | Running and reachable via `DATABASE_URL` (and **`DIRECT_DATABASE_URL`** — match locally or use Neon’s direct URL). |
+| **Migrations** | From repo root with root `.env`: **`npm run db:migrate:deploy`**. Or with env in the shell: **`npm run db:migrate:production`** (same as Render; requires `DATABASE_URL` + `DIRECT_DATABASE_URL`). |
 | **Mock user row** | JWT auth uses **`usr_mock_mvp_001`** as `sub`. Insert that user if missing, or Plaid FK inserts fail:<br>`INSERT INTO users (id, email, created_at, updated_at) VALUES ('usr_mock_mvp_001', 'demo@cashflow.app', NOW(), NOW()) ON CONFLICT DO NOTHING;` |
 | **Plaid dashboard** | Sandbox **Client ID** and **Secret** (same values as env). |
 

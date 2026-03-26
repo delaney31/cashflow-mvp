@@ -21,6 +21,9 @@
     "db:generate": "dotenv -e .env -- npm run generate -w @cashflow/db",
     "db:migrate": "dotenv -e .env -- npm run migrate:dev -w @cashflow/db",
     "db:migrate:deploy": "dotenv -e .env -- npm run migrate:deploy -w @cashflow/db",
+    "db:migrate:production": "npm run migrate:deploy:production -w @cashflow/db",
+    "db:migrate:production:status": "npm run migrate:status -w @cashflow/db",
+    "db:migrate:status": "dotenv -e .env -- npm run migrate:status -w @cashflow/db",
     "db:seed": "dotenv -e .env -- npm run seed -w @cashflow/db",
     "clean": "turbo run clean && rm -rf node_modules"
   },
